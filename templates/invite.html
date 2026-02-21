@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ group_name }} Invite</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  </head>
+  <body class="page-invite">
+    <main class="invite">
+      <div class="invite-card">
+        <h1>{{ group_name }}</h1>
+        {% if fallback %}
+        <p class="badge">Backup QR</p>
+        {% endif %}
+        <p class="notice">{{ notice }}</p>
+        <div class="qr-wrap">
+          <img src="{{ qr_url }}" alt="QR code">
+        </div>
+        {% if is_mobile %}
+        <p class="tip">Press and hold the QR to recognize.</p>
+        {% else %}
+        <p class="tip">Scan with WeChat to join.</p>
+        {% endif %}
+      </div>
+      <div class="invite-bg"></div>
+    </main>
+  </body>
+</html>

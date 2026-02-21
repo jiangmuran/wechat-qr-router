@@ -1,0 +1,15 @@
+ADMIN_USERNAME = "jmr"
+TOTP_SECRET = "BASE32SECRET"
+SECRET_KEY = "change_this_secret"
+
+DATABASE_PATH = "data.db"
+STORAGE_DIR = "storage"
+
+DEFAULT_EXPIRE_DAYS = 7
+CACHE_TTL_SECONDS = 1800
+REMIND_VISIT_THRESHOLD = 200
+NOTIFY_DEDUP_SECONDS = 1800
+
+SERVER_CHAN_SEND_URL = "https://sctapi.ftqq.com/your_token.send"
+
+DEFAULT_NOTICE = "Please follow the group rules after joining."

@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>群二维码后台</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  </head>
+  <body class="page-admin">
+    <header class="topbar">
+      <div>
+        <h1>群二维码后台</h1>
+        <p>上传、分组、查看访问量与提醒</p>
+      </div>
+      <a class="ghost" href="{{ url_for('admin_logout') }}">退出登录</a>
+    </header>
+
+    <main class="dashboard">
+      <section class="panel">
+        <div class="panel-header">
+          <h2>上传群二维码</h2>
+          <p>图片会自动解析并标准化二维码样式</p>
+        </div>
+        <form method="post" action="{{ url_for('admin_upload_qr') }}" enctype="multipart/form-data" class="form-grid">
+          <label>
+            群组编号
+            <input type="text" name="group_code" placeholder="group-1" required>
+          </label>
+          <label>
+            群组名称
+            <input type="text" name="group_name" placeholder="群组1" required>
+          </label>
+          <label>
+            注意事项
+            <input type="text" name="notice" placeholder="入群后请遵守群规">
+          </label>
+          <label>
+            二维码名称
+            <input type="text" name="qr_name" placeholder="主二维码" required>
+          </label>
+          <label>
+            过期天数
+            <input type="number" name="expire_days" min="1" placeholder="{{ default_expire_days }}">
+          </label>
+          <label>
+            二维码图片
+            <input type="file" name="image" accept="image/*">
+          </label>
+          <label>
+            或粘贴二维码内容
+            <textarea name="qr_text" rows="3" placeholder="可直接粘贴二维码链接内容"></textarea>
+          </label>
+          <div class="paste-box" data-paste="qr">
+            <div class="paste-tip">也可直接粘贴二维码截图（Ctrl/Cmd + V）</div>
+            <div class="paste-preview" data-preview="qr">暂无图片</div>
+            <input type="hidden" name="qr_image_data" data-input="qr">
+          </div>
+          <button type="submit">上传并解析</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>后备二维码</h2>
+          <p>当群组无可用二维码时会展示此备用二维码</p>
+        </div>
+        <form method="post" action="{{ url_for('admin_upload_backup') }}" enctype="multipart/form-data" class="form-grid">
+          <label>
+            后备二维码图片
+            <input type="file" name="image" accept="image/*">
+          </label>
+          <label>
+            或粘贴二维码内容
+            <textarea name="qr_text" rows="3" placeholder="可直接粘贴二维码链接内容"></textarea>
+          </label>
+          <div class="paste-box" data-paste="backup">
+            <div class="paste-tip">也可直接粘贴二维码截图（Ctrl/Cmd + V）</div>
+            <div class="paste-preview" data-preview="backup">暂无图片</div>
+            <input type="hidden" name="qr_image_data" data-input="backup">
+          </div>
+          <button type="submit">更新后备二维码</button>
+        </form>
+        {% if settings and settings['backup_qr_path'] %}
+          <p class="muted">已设置：{{ settings['backup_qr_path'] }}</p>
+        {% endif %}
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>推送测试</h2>
+          <p>检查 Server 酱配置是否可用</p>
+        </div>
+        <form method="post" action="{{ url_for('admin_test_notify') }}" class="form-grid">
+          <label>
+            标题
+            <input type="text" name="title" placeholder="测试通知">
+          </label>
+          <label>
+            内容
+            <textarea name="content" rows="3" placeholder="这是一条测试通知"></textarea>
+          </label>
+          <button type="submit">发送测试通知</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>群组信息</h2>
+          <p>管理群组名称与注意事项</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>编号</th>
+                <th>名称</th>
+                <th>注意事项</th>
+                <th>邀请链接</th>
+                <th>动态图片</th>
+                <th>创建时间</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for group in groups %}
+              <tr>
+                <td>{{ group['code'] }}</td>
+                <td>{{ group['name'] }}</td>
+                <td>{{ group['notice'] or '-' }}</td>
+                <td>
+                  <div class="link-row">
+                    <a class="link" href="{{ request.host_url }}invite/{{ group['code'] }}" target="_blank">打开</a>
+                    <button class="copy-btn" type="button" data-copy="{{ request.host_url }}invite/{{ group['code'] }}">复制</button>
+                  </div>
+                </td>
+                <td>
+                  <div class="link-row">
+                    <a class="link" href="{{ request.host_url }}api/qr-image/{{ group['code'] }}" target="_blank">打开</a>
+                    <button class="copy-btn" type="button" data-copy="{{ request.host_url }}api/qr-image/{{ group['code'] }}">复制</button>
+                  </div>
+                </td>
+                <td>{{ group['created_at'] }}</td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="6" class="muted">暂无群组</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>二维码列表</h2>
+          <p>访问次数为累计值，用于挑选最低访问二维码</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>群组</th>
+                <th>二维码名称</th>
+                <th>二维码</th>
+                <th>访问次数</th>
+                <th>过期时间</th>
+                <th>状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for qr in qr_codes %}
+              <tr>
+                <td>{{ qr['group_code'] }}（{{ qr['group_name'] }}）</td>
+                <td>{{ qr['name'] }}</td>
+                <td>
+                  <div class="link-row">
+                    <a class="link" href="{{ url_for('serve_file', path=qr['qr_path']) }}" target="_blank">打开</a>
+                    <button class="copy-btn" type="button" data-copy="{{ request.host_url }}files?path={{ qr['qr_path'] }}">复制</button>
+                  </div>
+                </td>
+                <td>{{ qr['visit_count'] }}</td>
+                <td>{{ qr['expire_at'] }}</td>
+                <td>{{ '可用' if qr['active'] else '停用' }}</td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="6" class="muted">暂无二维码</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+    <script>
+      const pasteAreas = document.querySelectorAll("[data-paste]");
+      pasteAreas.forEach((area) => {
+        area.addEventListener("paste", (event) => {
+          const items = event.clipboardData && event.clipboardData.items;
+          if (!items) {
+            return;
+          }
+          for (const item of items) {
+            if (item.type.startsWith("image/")) {
+              const file = item.getAsFile();
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                const dataUrl = e.target.result;
+                const key = area.getAttribute("data-paste");
+                const input = document.querySelector(`[data-input='${key}']`);
+                const preview = document.querySelector(`[data-preview='${key}']`);
+                if (input) {
+                  input.value = dataUrl;
+                }
+                if (preview) {
+                  preview.innerHTML = `<img src="${dataUrl}" alt="pasted">`;
+                }
+              };
+              reader.readAsDataURL(file);
+              event.preventDefault();
+              return;
+            }
+          }
+        });
+      });
+
+      document.querySelectorAll("[data-copy]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const value = btn.getAttribute("data-copy") || "";
+          try {
+            await navigator.clipboard.writeText(value);
+            btn.textContent = "已复制";
+            setTimeout(() => {
+              btn.textContent = "复制";
+            }, 1200);
+          } catch (e) {
+            btn.textContent = "复制失败";
+            setTimeout(() => {
+              btn.textContent = "复制";
+            }, 1200);
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

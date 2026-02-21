@@ -1,0 +1,6 @@
+flask
+pyotp
+qrcode
+opencv-python
+requests
+pillow

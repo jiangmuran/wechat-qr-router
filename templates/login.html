@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>后台登录</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  </head>
+  <body class="page-login">
+    <main class="login-card">
+      <div class="brand">
+        <div class="logo"></div>
+        <div>
+          <h1>群二维码后台</h1>
+          <p>安全验证后进入管理</p>
+        </div>
+      </div>
+      {% if error %}
+      <p class="error">账号或验证码错误</p>
+      {% endif %}
+      <form method="post" class="form">
+        <label>
+          用户名
+          <input type="text" name="username" placeholder="jmr" required>
+        </label>
+        <label>
+          动态验证码
+          <input type="text" name="otp" inputmode="numeric" placeholder="6 位验证码" required>
+        </label>
+        <button type="submit">进入后台</button>
+      </form>
+    </main>
+  </body>
+</html>
