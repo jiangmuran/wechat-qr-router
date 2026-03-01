@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import cv2
+import numpy as np
 import pyotp
 import qrcode
 from flask import Flask, jsonify, redirect, render_template, request, send_file, session, url_for
@@ -103,14 +104,37 @@ def ensure_storage_dirs():
 
 
 def decode_qr(image_path):
-    img = cv2.imread(str(image_path))
+    image_bytes = Path(image_path).read_bytes()
+    img = cv2.imdecode(np.frombuffer(image_bytes, np.uint8), cv2.IMREAD_COLOR)
     if img is None:
         raise ValueError("Unable to read image")
+
     detector = cv2.QRCodeDetector()
-    data, points, _ = detector.detectAndDecode(img)
-    if not data:
-        raise ValueError("No QR code detected")
-    return data
+    candidates = [img]
+    try:
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        candidates.append(gray)
+        thresh = cv2.adaptiveThreshold(
+            gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 31, 2
+        )
+        candidates.append(thresh)
+    except cv2.error:
+        pass
+
+    for candidate in candidates:
+        data, _, _ = detector.detectAndDecode(candidate)
+        if data:
+            return data
+        try:
+            ok, decoded_info, _, _ = detector.detectAndDecodeMulti(candidate)
+        except cv2.error:
+            ok, decoded_info = False, []
+        if ok:
+            for item in decoded_info:
+                if item:
+                    return item
+
+    raise ValueError("No QR code detected")
 
 
 def generate_qr(data, output_path):
@@ -182,17 +206,30 @@ def mark_expired_qr(conn, group_id=None):
     cur = conn.cursor()
     if group_id:
         cur.execute(
-            "SELECT id, name, expire_at FROM qr_codes WHERE group_id = ? AND active = 1 AND expire_at <= ?",
+            "SELECT id, name, expire_at, group_id FROM qr_codes WHERE group_id = ? AND active = 1 AND expire_at <= ?",
             (group_id, now_ts),
         )
     else:
         cur.execute(
-            "SELECT id, name, expire_at FROM qr_codes WHERE active = 1 AND expire_at <= ?",
+            "SELECT id, name, expire_at, group_id FROM qr_codes WHERE active = 1 AND expire_at <= ?",
             (now_ts,),
         )
     expired = cur.fetchall()
     for row in expired:
         cur.execute("UPDATE qr_codes SET active = 0 WHERE id = ?", (row["id"],))
+        has_replacement = False
+        if row["group_id"]:
+            cur.execute(
+                """
+                SELECT 1 FROM qr_codes
+                WHERE group_id = ? AND active = 1 AND expire_at > ?
+                LIMIT 1
+                """,
+                (row["group_id"], now_ts),
+            )
+            has_replacement = cur.fetchone() is not None
+        if has_replacement:
+            continue
         title = "QR expired"
         content = f"QR {row['name']} expired at {from_timestamp(row['expire_at']).isoformat()}"
         send_notification(title, content, f"expired:{row['id']}")
@@ -269,6 +306,12 @@ def get_cached_qr(group_code):
     if entry["expires_at"] < time.time():
         _cache.pop(group_code, None)
         return None
+    qr_info = entry.get("qr_info") or {}
+    if not qr_info.get("fallback"):
+        expire_at = qr_info.get("expire_at")
+        if expire_at and expire_at <= to_timestamp(utc_now()):
+            _cache.pop(group_code, None)
+            return None
     return entry
 
 

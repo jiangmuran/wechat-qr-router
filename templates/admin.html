@@ -180,7 +180,13 @@
                 </td>
                 <td>{{ qr['visit_count'] }}</td>
                 <td>{{ qr['expire_at'] }}</td>
-                <td>{{ '可用' if qr['active'] else '停用' }}</td>
+                <td>
+                  {% if qr['active'] %}
+                    <span class="status status-active">可用</span>
+                  {% else %}
+                    <span class="status status-inactive">停用</span>
+                  {% endif %}
+                </td>
               </tr>
               {% else %}
               <tr>

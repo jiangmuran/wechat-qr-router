@@ -2,5 +2,6 @@ flask
 pyotp
 qrcode
 opencv-python
+numpy
 requests
 pillow
