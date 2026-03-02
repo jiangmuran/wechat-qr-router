@@ -272,7 +272,8 @@ def increment_visit(conn, qr_id, current_count=None):
     cur.execute("UPDATE qr_codes SET visit_count = ? WHERE id = ?", (new_count, qr_id))
     conn.commit()
 
-    if new_count >= config.REMIND_VISIT_THRESHOLD:
+    threshold = getattr(config, "REMIND_VISIT_THRESHOLD", None)
+    if isinstance(threshold, int) and threshold > 0 and new_count >= threshold:
         title = "QR visit threshold"
         content = f"QR {qr_id} reached {new_count} visits"
         send_notification(title, content, f"visit_threshold:{qr_id}")
@@ -586,7 +587,7 @@ def api_qr(group_code):
                 "group": group_code,
                 "group_name": group["name"] if group else group_code,
                 "notice": (group["notice"] if group else None) or config.DEFAULT_NOTICE,
-                "qr_url": url_for("serve_file", path=backup_qr, _external=True),
+                "qr_url": url_for("serve_file", path=backup_qr),
                 "fallback": True,
             }
             set_cached_qr(group_code, qr_info)
@@ -601,7 +602,7 @@ def api_qr(group_code):
         "group": group_code,
         "group_name": group["name"],
         "notice": group["notice"] or config.DEFAULT_NOTICE,
-        "qr_url": url_for("serve_file", path=qr["qr_path"], _external=True),
+        "qr_url": url_for("serve_file", path=qr["qr_path"]),
         "expire_at": qr["expire_at"],
         "fallback": False,
     }
@@ -623,7 +624,7 @@ def api_qr_image(group_code):
                 f"No active QR for group {group_code}",
                 f"none:{group_code}",
             )
-            qr_url = url_for("serve_file", path=backup_qr, _external=True)
+            qr_url = url_for("serve_file", path=backup_qr)
             qr_info = {
                 "group": group_code,
                 "group_name": group["name"] if group else group_code,
@@ -638,7 +639,7 @@ def api_qr_image(group_code):
     increment_visit(conn, qr["id"], qr["visit_count"])
     conn.close()
 
-    qr_url = url_for("serve_file", path=qr["qr_path"], _external=True)
+    qr_url = url_for("serve_file", path=qr["qr_path"])
     qr_info = {
         "qr_id": qr["id"],
         "group": group_code,
@@ -679,7 +680,7 @@ def invite(group_code):
                 f"No active QR for group {group_code}",
                 f"none:{group_code}",
             )
-            qr_url = url_for("serve_file", path=backup_qr, _external=True)
+            qr_url = url_for("serve_file", path=backup_qr)
             qr_info = {
                 "group": group_code,
                 "group_name": group["name"] if group else group_code,
@@ -701,7 +702,7 @@ def invite(group_code):
     increment_visit(conn, qr["id"], qr["visit_count"])
     conn.close()
 
-    qr_url = url_for("serve_file", path=qr["qr_path"], _external=True)
+    qr_url = url_for("serve_file", path=qr["qr_path"])
     qr_info = {
         "qr_id": qr["id"],
         "group": group_code,

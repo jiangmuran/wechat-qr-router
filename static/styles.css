@@ -387,9 +387,13 @@ tbody tr:nth-child(even) {
 }
 
 .qr-wrap img {
-  width: 220px;
-  height: 220px;
+  width: min(240px, 72vw);
+  height: auto;
+  aspect-ratio: 1 / 1;
   object-fit: contain;
+  image-rendering: pixelated;
+  display: block;
+  margin: 0 auto;
 }
 
 .notice {
@@ -428,8 +432,8 @@ tbody tr:nth-child(even) {
   }
 
   .qr-wrap img {
-    width: 200px;
-    height: 200px;
+    width: min(220px, 76vw);
+    height: auto;
   }
 }
 
