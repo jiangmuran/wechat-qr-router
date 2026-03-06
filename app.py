@@ -481,6 +481,7 @@ def admin_upload_qr():
         if not original_path:
             return "QR decode failed and no original image", 400
         qr_cache_path = original_path
+        qr_text = ""
 
     conn = get_db()
     cur = conn.cursor()
@@ -499,6 +500,7 @@ def admin_upload_qr():
         )
         group_id = cur.lastrowid
 
+    qr_text = qr_text or ""
     expire_at = to_timestamp(utc_now() + timedelta(days=expire_days_int))
     cur.execute(
         """
