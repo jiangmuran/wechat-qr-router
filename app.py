@@ -444,6 +444,7 @@ def admin_upload_qr():
     ensure_storage_dirs()
     unique_id = f"{int(time.time())}_{os.urandom(4).hex()}"
     original_path = None
+    qr_text = None
     if qr_text_input:
         qr_text = qr_text_input
     elif pasted_image_data:
@@ -459,8 +460,7 @@ def admin_upload_qr():
         try:
             qr_text = decode_qr(original_path)
         except ValueError as exc:
-            original_path.unlink(missing_ok=True)
-            return f"QR decode failed: {exc}", 400
+            qr_text = None
     else:
         assert file is not None
         filename = secure_filename(file.filename or "upload.png")
@@ -471,11 +471,16 @@ def admin_upload_qr():
         try:
             qr_text = decode_qr(original_path)
         except ValueError as exc:
-            original_path.unlink(missing_ok=True)
-            return f"QR decode failed: {exc}", 400
+            qr_text = None
 
-    qr_cache_path = Path(config.STORAGE_DIR) / "qr_cache" / f"{unique_id}.png"
-    generate_qr(qr_text, qr_cache_path)
+    if qr_text:
+        qr_cache_path = Path(config.STORAGE_DIR) / "qr_cache" / f"{unique_id}.png"
+        generate_qr(qr_text, qr_cache_path)
+    else:
+        # Fallback: use original image directly when decode fails
+        if not original_path:
+            return "QR decode failed and no original image", 400
+        qr_cache_path = original_path
 
     conn = get_db()
     cur = conn.cursor()
@@ -532,6 +537,7 @@ def admin_upload_backup():
     ensure_storage_dirs()
     unique_id = f"backup_{int(time.time())}_{os.urandom(4).hex()}"
     original_path = None
+    qr_text = None
     if qr_text_input:
         qr_text = qr_text_input
     elif pasted_image_data:
@@ -547,8 +553,7 @@ def admin_upload_backup():
         try:
             qr_text = decode_qr(original_path)
         except ValueError as exc:
-            original_path.unlink(missing_ok=True)
-            return f"QR decode failed: {exc}", 400
+            qr_text = None
     else:
         assert file is not None
         filename = secure_filename(file.filename or "backup.png")
@@ -559,11 +564,15 @@ def admin_upload_backup():
         try:
             qr_text = decode_qr(original_path)
         except ValueError as exc:
-            original_path.unlink(missing_ok=True)
-            return f"QR decode failed: {exc}", 400
+            qr_text = None
 
-    qr_cache_path = Path(config.STORAGE_DIR) / "qr_cache" / f"{unique_id}.png"
-    generate_qr(qr_text, qr_cache_path)
+    if qr_text:
+        qr_cache_path = Path(config.STORAGE_DIR) / "qr_cache" / f"{unique_id}.png"
+        generate_qr(qr_text, qr_cache_path)
+    else:
+        if not original_path:
+            return "QR decode failed and no original image", 400
+        qr_cache_path = original_path
 
     conn = get_db()
     cur = conn.cursor()
