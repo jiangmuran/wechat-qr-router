@@ -7,6 +7,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+from PIL import Image
 import pyotp
 import qrcode
 from flask import Flask, jsonify, redirect, render_template, request, send_file, session, url_for
@@ -109,10 +110,18 @@ def decode_qr(image_path):
     image_bytes = Path(image_path).read_bytes()
     img = cv2.imdecode(np.frombuffer(image_bytes, np.uint8), cv2.IMREAD_COLOR)
     if img is None:
+        try:
+            with Image.open(image_path) as pil_img:
+                pil_img = pil_img.convert("RGB")
+                img = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+        except Exception:
+            img = None
+    if img is None:
         raise ValueError("Unable to read image")
 
     detector = cv2.QRCodeDetector()
-    candidates = [img]
+    candidates = []
+    candidates.append(img)
     try:
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         candidates.append(gray)
@@ -120,21 +129,40 @@ def decode_qr(image_path):
             gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 31, 2
         )
         candidates.append(thresh)
+        candidates.append(cv2.bitwise_not(thresh))
     except cv2.error:
-        pass
+        gray = None
 
-    for candidate in candidates:
-        data, _, _ = detector.detectAndDecode(candidate)
-        if data:
-            return data
-        try:
-            ok, decoded_info, _, _ = detector.detectAndDecodeMulti(candidate)
-        except cv2.error:
-            ok, decoded_info = False, []
-        if ok:
-            for item in decoded_info:
-                if item:
-                    return item
+    scales = [0.6, 0.8, 1.0, 1.2, 1.5]
+    for candidate in list(candidates):
+        if candidate is None:
+            continue
+        for scale in scales:
+            if scale == 1.0:
+                resized = candidate
+            else:
+                try:
+                    resized = cv2.resize(
+                        candidate,
+                        None,
+                        fx=scale,
+                        fy=scale,
+                        interpolation=cv2.INTER_CUBIC,
+                    )
+                except cv2.error:
+                    continue
+
+            data, _, _ = detector.detectAndDecode(resized)
+            if data:
+                return data
+            try:
+                ok, decoded_info, _, _ = detector.detectAndDecodeMulti(resized)
+            except cv2.error:
+                ok, decoded_info = False, []
+            if ok:
+                for item in decoded_info:
+                    if item:
+                        return item
 
     raise ValueError("No QR code detected")
 
