@@ -217,6 +217,7 @@ def mark_expired_qr(conn, group_id=None):
             (now_ts,),
         )
     expired = cur.fetchall()
+    notifications = []
     for row in expired:
         cur.execute("UPDATE qr_codes SET active = 0 WHERE id = ?", (row["id"],))
         has_replacement = False
@@ -234,8 +235,10 @@ def mark_expired_qr(conn, group_id=None):
             continue
         title = "QR expired"
         content = f"QR {row['name']} expired at {from_timestamp(row['expire_at']).isoformat()}"
-        send_notification(title, content, f"expired:{row['id']}")
+        notifications.append((title, content, f"expired:{row['id']}"))
     conn.commit()
+    for title, content, event_key in notifications:
+        send_notification(title, content, event_key)
 
 
 def select_best_qr(conn, group_code):
