@@ -239,6 +239,15 @@ button:hover {
   justify-self: start;
 }
 
+.panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
 .paste-box {
   border: 1px dashed rgba(27, 31, 40, 0.2);
   border-radius: 14px;
@@ -327,6 +336,16 @@ tbody tr:nth-child(even) {
 
 .copy-btn:hover {
   background: rgba(15, 118, 110, 0.16);
+}
+
+.danger-btn {
+  background: var(--danger);
+  box-shadow: none;
+}
+
+.danger-btn:hover {
+  background: #912018;
+  box-shadow: 0 10px 18px rgba(180, 35, 24, 0.18);
 }
 
 .status {

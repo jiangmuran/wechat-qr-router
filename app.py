@@ -106,6 +106,55 @@ def ensure_storage_dirs():
     (base / "qr_cache").mkdir(parents=True, exist_ok=True)
 
 
+def normalize_storage_path(path_value):
+    if not path_value:
+        return None
+    file_path = Path(path_value)
+    if not file_path.is_absolute():
+        file_path = APP_ROOT / file_path
+    try:
+        return file_path.resolve()
+    except FileNotFoundError:
+        return file_path
+
+
+def storage_path_in_use(conn, path_value):
+    if not path_value:
+        return False
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT 1 FROM qr_codes
+        WHERE original_path = ? OR qr_path = ?
+        LIMIT 1
+        """,
+        (path_value, path_value),
+    )
+    if cur.fetchone() is not None:
+        return True
+    cur.execute(
+        """
+        SELECT 1 FROM settings
+        WHERE backup_original_path = ? OR backup_qr_path = ?
+        LIMIT 1
+        """,
+        (path_value, path_value),
+    )
+    return cur.fetchone() is not None
+
+
+def remove_storage_file_if_unused(conn, path_value):
+    if not path_value or storage_path_in_use(conn, path_value):
+        return
+    file_path = normalize_storage_path(path_value)
+    if not file_path:
+        return
+    storage_root = (APP_ROOT / config.STORAGE_DIR).resolve()
+    if storage_root not in file_path.parents:
+        return
+    file_path.unlink(missing_ok=True)
+
+
 def decode_qr(image_path):
     image_bytes = Path(image_path).read_bytes()
     img = cv2.imdecode(np.frombuffer(image_bytes, np.uint8), cv2.IMREAD_COLOR)
@@ -587,6 +636,72 @@ def admin_upload_backup():
         (str(original_path) if original_path else "", str(qr_cache_path), qr_text, to_timestamp(utc_now())),
     )
     conn.commit()
+    conn.close()
+    _cache.clear()
+    return redirect(url_for("admin"))
+
+
+@app.route("/admin/qr/<int:qr_id>/delete", methods=["POST"])
+def admin_delete_qr(qr_id):
+    guard = require_login()
+    if guard:
+        return guard
+
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT qr_codes.group_id, qr_codes.original_path, qr_codes.qr_path, groups.code AS group_code
+        FROM qr_codes
+        JOIN groups ON groups.id = qr_codes.group_id
+        WHERE qr_codes.id = ?
+        """,
+        (qr_id,),
+    )
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return redirect(url_for("admin"))
+
+    group_code = row["group_code"]
+    paths_to_cleanup = {row["original_path"], row["qr_path"]}
+    cur.execute("DELETE FROM qr_codes WHERE id = ?", (qr_id,))
+    conn.commit()
+    for path_value in paths_to_cleanup:
+        remove_storage_file_if_unused(conn, path_value)
+    conn.close()
+    _cache.pop(group_code, None)
+    return redirect(url_for("admin"))
+
+
+@app.route("/admin/backup/delete", methods=["POST"])
+def admin_delete_backup():
+    guard = require_login()
+    if guard:
+        return guard
+
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT backup_original_path, backup_qr_path FROM settings WHERE id = 1"
+    )
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return redirect(url_for("admin"))
+
+    paths_to_cleanup = {row["backup_original_path"], row["backup_qr_path"]}
+    cur.execute(
+        """
+        UPDATE settings
+        SET backup_original_path = NULL, backup_qr_path = NULL, backup_qr_text = NULL, updated_at = ?
+        WHERE id = 1
+        """,
+        (to_timestamp(utc_now()),),
+    )
+    conn.commit()
+    for path_value in paths_to_cleanup:
+        remove_storage_file_if_unused(conn, path_value)
     conn.close()
     _cache.clear()
     return redirect(url_for("admin"))

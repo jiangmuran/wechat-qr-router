@@ -81,7 +81,12 @@
           <button type="submit">更新后备二维码</button>
         </form>
         {% if settings and settings['backup_qr_path'] %}
-          <p class="muted">已设置：{{ settings['backup_qr_path'] }}</p>
+          <div class="panel-actions">
+            <p class="muted">已设置：{{ settings['backup_qr_path'] }}</p>
+            <form method="post" action="{{ url_for('admin_delete_backup') }}" onsubmit="return confirm('确认删除后备二维码？');">
+              <button type="submit" class="danger-btn">删除后备二维码</button>
+            </form>
+          </div>
         {% endif %}
       </section>
 
@@ -165,6 +170,7 @@
                 <th>访问次数</th>
                 <th>过期时间</th>
                 <th>状态</th>
+                <th>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -187,10 +193,15 @@
                     <span class="status status-inactive">停用</span>
                   {% endif %}
                 </td>
+                <td>
+                  <form method="post" action="{{ url_for('admin_delete_qr', qr_id=qr['id']) }}" onsubmit="return confirm('确认删除这个二维码？');">
+                    <button type="submit" class="danger-btn">删除</button>
+                  </form>
+                </td>
               </tr>
               {% else %}
               <tr>
-                <td colspan="6" class="muted">暂无二维码</td>
+                <td colspan="7" class="muted">暂无二维码</td>
               </tr>
               {% endfor %}
             </tbody>
