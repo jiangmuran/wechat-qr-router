@@ -1,5 +1,8 @@
 import base64
+import binascii
+import hmac
 import os
+import secrets
 import sqlite3
 import time
 from datetime import datetime, timedelta
@@ -229,6 +232,10 @@ def generate_qr(data, output_path):
     img.save(output_path)
 
 
+def get_config_value(name, default):
+    return getattr(config, name, default)
+
+
 def is_logged_in():
     return session.get("is_admin") is True
 
@@ -237,6 +244,40 @@ def require_login():
     if not is_logged_in():
         return "403 forbidden", 403
     return None
+
+
+def get_csrf_token():
+    token = session.get("_csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["_csrf_token"] = token
+    return token
+
+
+def validate_csrf_token():
+    expected = session.get("_csrf_token")
+    supplied = request.form.get("csrf_token") or request.headers.get("X-CSRF-Token")
+    if not expected or not supplied or not hmac.compare_digest(expected, supplied):
+        return "Invalid CSRF token", 400
+    return None
+
+
+def decode_pasted_image_data(pasted_image_data):
+    try:
+        header, encoded = pasted_image_data.split(",", 1)
+    except ValueError as exc:
+        raise ValueError("Invalid pasted image data") from exc
+    if "base64" not in header:
+        raise ValueError("Invalid pasted image data")
+    try:
+        image_bytes = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError("Invalid pasted image data") from exc
+
+    max_bytes = get_config_value("MAX_PASTED_IMAGE_BYTES", 5 * 1024 * 1024)
+    if max_bytes and len(image_bytes) > max_bytes:
+        raise ValueError("Pasted image is too large")
+    return image_bytes
 
 
 def send_notification(title, content, event_key):
@@ -343,16 +384,16 @@ def select_best_qr(conn, group_code):
 
 def increment_visit(conn, qr_id, current_count=None):
     cur = conn.cursor()
-    if current_count is None:
-        cur.execute("SELECT visit_count FROM qr_codes WHERE id = ?", (qr_id,))
-        row = cur.fetchone()
-        if not row:
-            return
-        current_count = row["visit_count"]
-
-    new_count = current_count + 1
-    cur.execute("UPDATE qr_codes SET visit_count = ? WHERE id = ?", (new_count, qr_id))
+    cur.execute("UPDATE qr_codes SET visit_count = visit_count + 1 WHERE id = ?", (qr_id,))
+    if cur.rowcount == 0:
+        return
     conn.commit()
+
+    cur.execute("SELECT visit_count FROM qr_codes WHERE id = ?", (qr_id,))
+    row = cur.fetchone()
+    if not row:
+        return
+    new_count = row["visit_count"]
 
     threshold = getattr(config, "REMIND_VISIT_THRESHOLD", None)
     if isinstance(threshold, int) and threshold > 0 and new_count >= threshold:
@@ -374,12 +415,28 @@ def get_backup_qr(conn):
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = config.SECRET_KEY
+app.config["MAX_CONTENT_LENGTH"] = get_config_value("MAX_CONTENT_LENGTH", 16 * 1024 * 1024)
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = get_config_value("SESSION_COOKIE_SECURE", False)
 
 ensure_storage_dirs()
 init_db()
 
 
 _cache = {}
+
+
+@app.context_processor
+def inject_security_helpers():
+    return {"csrf_token": get_csrf_token}
+
+
+@app.before_request
+def protect_admin_posts():
+    if request.method == "POST" and request.path.startswith("/admin"):
+        return validate_csrf_token()
+    return None
 
 
 def get_cached_qr(group_code):
@@ -498,12 +555,9 @@ def admin_upload_qr():
         qr_text = qr_text_input
     elif pasted_image_data:
         try:
-            header, encoded = pasted_image_data.split(",", 1)
-        except ValueError:
-            return "Invalid pasted image data", 400
-        if "base64" not in header:
-            return "Invalid pasted image data", 400
-        image_bytes = base64.b64decode(encoded)
+            image_bytes = decode_pasted_image_data(pasted_image_data)
+        except ValueError as exc:
+            return str(exc), 400
         original_path = Path(config.STORAGE_DIR) / "originals" / f"{unique_id}_paste.png"
         original_path.write_bytes(image_bytes)
         try:
@@ -593,12 +647,9 @@ def admin_upload_backup():
         qr_text = qr_text_input
     elif pasted_image_data:
         try:
-            header, encoded = pasted_image_data.split(",", 1)
-        except ValueError:
-            return "Invalid pasted image data", 400
-        if "base64" not in header:
-            return "Invalid pasted image data", 400
-        image_bytes = base64.b64decode(encoded)
+            image_bytes = decode_pasted_image_data(pasted_image_data)
+        except ValueError as exc:
+            return str(exc), 400
         original_path = Path(config.STORAGE_DIR) / "originals" / f"{unique_id}_paste.png"
         original_path.write_bytes(image_bytes)
         try:
@@ -907,4 +958,7 @@ def serve_file():
 if __name__ == "__main__":
     ensure_storage_dirs()
     init_db()
-    app.run(host="0.0.0.0", port=5002, debug=True)
+    host = os.environ.get("HOST", "127.0.0.1")
+    port = int(os.environ.get("PORT", "5002"))
+    debug = os.environ.get("FLASK_DEBUG", "").lower() in {"1", "true", "yes"}
+    app.run(host=host, port=port, debug=debug)

@@ -19,6 +19,7 @@
       <p class="error">账号或验证码错误</p>
       {% endif %}
       <form method="post" class="form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label>
           用户名
           <input type="text" name="username" placeholder="jmr" required>
