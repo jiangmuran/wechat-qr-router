@@ -35,6 +35,18 @@ cp config.py.example config.py
 
 默认端口：`5002`
 
+直接运行时默认只监听 `127.0.0.1` 且关闭 debug。如需临时调整：
+
+```bash
+HOST=127.0.0.1 PORT=5002 ./.venv/bin/python app.py
+```
+
+生产部署建议使用 gunicorn + 反向代理：
+
+```bash
+gunicorn -w 2 -b 127.0.0.1:5002 app:app
+```
+
 ## 后台
 
 - 地址：`http://localhost:5002/admin`
@@ -53,3 +65,4 @@ cp config.py.example config.py
 
 - 上传图片优先自动识别；识别失败时也可直接保存原图作为二维码。
 - 访问次数提醒不会禁用二维码，只会通知。
+- 暴露到公网时请配置强 `SECRET_KEY`、有效 TOTP 密钥、HTTPS 反向代理，并按实际 HTTPS 状态设置 `SESSION_COOKIE_SECURE`。

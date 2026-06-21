@@ -22,6 +22,7 @@
           <p>图片会自动解析并标准化二维码样式</p>
         </div>
         <form method="post" action="{{ url_for('admin_upload_qr') }}" enctype="multipart/form-data" class="form-grid">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <label>
             群组编号
             <input type="text" name="group_code" placeholder="group-1" required>
@@ -65,6 +66,7 @@
           <p>当群组无可用二维码时会展示此备用二维码</p>
         </div>
         <form method="post" action="{{ url_for('admin_upload_backup') }}" enctype="multipart/form-data" class="form-grid">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <label>
             后备二维码图片
             <input type="file" name="image" accept="image/*">
@@ -84,6 +86,7 @@
           <div class="panel-actions">
             <p class="muted">已设置：{{ settings['backup_qr_path'] }}</p>
             <form method="post" action="{{ url_for('admin_delete_backup') }}" onsubmit="return confirm('确认删除后备二维码？');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="danger-btn">删除后备二维码</button>
             </form>
           </div>
@@ -96,6 +99,7 @@
           <p>检查 Server 酱配置是否可用</p>
         </div>
         <form method="post" action="{{ url_for('admin_test_notify') }}" class="form-grid">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <label>
             标题
             <input type="text" name="title" placeholder="测试通知">
@@ -195,6 +199,7 @@
                 </td>
                 <td>
                   <form method="post" action="{{ url_for('admin_delete_qr', qr_id=qr['id']) }}" onsubmit="return confirm('确认删除这个二维码？');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="danger-btn">删除</button>
                   </form>
                 </td>
